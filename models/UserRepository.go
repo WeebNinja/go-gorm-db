@@ -2,10 +2,11 @@
 package models
 
 import (
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"fmt"
+
+	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // สร้าง struct ชื่อ UserRepository ที่มีฟิลด์ชื่อ Db เป็น pointer ของ gorm.DB
@@ -27,7 +28,7 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 func (r *UserRepository) GetUsers(c *gin.Context) {
 	var users []User
 	// ดึงข้อมูล User ทั้งหมดจากฐานข้อมูล และเก็บลงในตัวแปร users
-	r.Db.Find(&users) 	// SELECT * FROM users
+	r.Db.Find(&users) // SELECT * FROM users
 
 	// ลบฟิลด์ Password ออก เพื่อไม่ให้แสดงใน JSON
 	for i := range users {
@@ -35,30 +36,37 @@ func (r *UserRepository) GetUsers(c *gin.Context) {
 	}
 
 	// ส่งข้อมูลกลับไปให้ผู้ใช้งาน
-	c.JSON(200, users)	// ส่งข้อมูลกลับไปให้ผู้ใช้งาน
+	c.JSON(200, users) // ส่งข้อมูลกลับไปให้ผู้ใช้งาน
 }
 
 // ทำหน้าที่เพิ่มข้อมูล User ลงในฐานข้อมูล และส่งกลับไปให้ผู้ใช้งานผ่าน c.JSON(200, newUser)
 func (r *UserRepository) PostUser(c *gin.Context) {
 	var newUser User
-	c.BindJSON(&newUser)	// รับค่า JSON จากผู้ใช้งาน และแปลงเป็น struct ของ User
+	c.BindJSON(&newUser) // รับค่า JSON จากผู้ใช้งาน และแปลงเป็น struct ของ User
+
+	// ตรวจสอบว่าอีเมลล์ซ้ำหรือไม่
+	var existingUser User
+	if err := r.Db.Where("email = ?", newUser.Email).First(&existingUser).Error; err == nil {
+		c.JSON(401, gin.H{"message": "Email already exists"})
+		return
+	}
+
 	// ใช้ฟังก์ชัน GeneratePasswordHash ในการเข้ารหัสรหัสผ่าน
 	newUser.Hash = GeneratePasswordHash(newUser.Password)
 
 	// สร้างข้อมูล User ใหม่ลงในฐานข้อมูล
-	r.Db.Create(&newUser)	// INSERT INTO users (name, email, hash) VALUES (newUser.Name, newUser.Email, newUser.Hash)
+	r.Db.Create(&newUser) // INSERT INTO users (name, email, hash) VALUES (newUser.Name, newUser.Email, newUser.Hash)
 
 	// ลบฟิลด์ Password ออก เพื่อไม่ให้แสดงใน JSON
 	newUser.Password = ""
 
 	// ส่งข้อมูลกลับไปให้ผู้ใช้งาน
-	c.JSON(200, newUser)	// ส่งข้อมูลกลับไปให้ผู้ใช้งาน
 }
 
 // ฟังก์ชันสำหรับเข้ารหัสรหัสผ่าน
 func GeneratePasswordHash(password string) string {
 	// ใช้ฟังก์ชัน GenerateFromPassword ในการเข้ารหัสรหัสผ่าน
-	hash, err := bcrypt.GenerateFromPassword([]byte( password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -68,20 +76,20 @@ func GeneratePasswordHash(password string) string {
 // ฟังก์ชันค้นหา User จากฐานข้อมูล โดยใช้ id ที่รับเข้ามาเป็นเงื่อนไขในการค้นหา
 // ฟังก์ชันนี้ parameter ที่รับมาจะเป็น pointer ของ gin.Context เพราะเราจะใช้ c.JSON ส่งค่ากลับไปให้ผู้ใช้งาน
 func (r *UserRepository) GetUser(c *gin.Context) {
-	email := c.Param("email")		// รับค่า email จากผู้ใช้งาน
-	var user User			// สร้างตัวแปร user เพื่อเก็บข้อมูลที่ค้นหาได้
+	email := c.Param("email") // รับค่า email จากผู้ใช้งาน
+	var user User             // สร้างตัวแปร user เพื่อเก็บข้อมูลที่ค้นหาได้
 	// print email ออกมาดู
 	fmt.Println(email)
 	// ดึงข้อมูล User จากฐานข้อมูล โดยใช้ email เป็นเงื่อนไขในการค้นหา
-	r.Db.First(&user, "email = ?", email)	// SELECT * FROM users WHERE email = email
-	c.JSON(200, user)		// ส่งข้อมูลกลับไปให้ผู้ใช้งาน
+	r.Db.First(&user, "email = ?", email) // SELECT * FROM users WHERE email = email
+	c.JSON(200, user)                     // ส่งข้อมูลกลับไปให้ผู้ใช้งาน
 }
 
 // ฟังก์ชันอัพเดทข้อมูล User ลงในฐานข้อมูล และส่งกลับไปให้ผู้ใช้งานผ่าน c.JSON(200, user)
 func (r *UserRepository) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	var user User
-	r.Db.First(&user, id)	// SELECT * FROM users WHERE id = id
+	r.Db.First(&user, id) // SELECT * FROM users WHERE id = id
 	c.BindJSON(&user)
 
 	// ถ้ามีการเปลี่ยนแปลงรหัสผ่าน ให้เข้ารหัสรหัสผ่านใหม่
@@ -89,17 +97,24 @@ func (r *UserRepository) UpdateUser(c *gin.Context) {
 		user.Hash = GeneratePasswordHash(user.Password)
 	}
 
-	r.Db.Save(&user)	// UPDATE users SET name = user.Name, email = user.Email, hash = user.Hash WHERE id = id
+	r.Db.Save(&user) // UPDATE users SET name = user.Name, email = user.Email, hash = user.Hash WHERE id = id
 	c.JSON(200, user)
 }
 
-// ฟังก์ชันลบข้อมูล User ออกจากฐานข้อมูล และส่งกลับไปให้ผู้ใช้งานผ่าน c.JSON(200, user)
+// ฟังก์ชันลบข้อมูล User ออกจากฐานข้อมูล โดยใช้อีเมลเป็นเงื่อนไขในการค้นหา
 func (r *UserRepository) DeleteUser(c *gin.Context) {
-	id := c.Param("id")
+	email := c.Param("email")
 	var user User
-	r.Db.First(&user, id)	// SELECT * FROM users WHERE id = id
-	r.Db.Delete(&user)		// DELETE FROM users WHERE id = id
-	c.JSON(200, user)
+	// ค้นหาผู้ใช้ที่ต้องการลบโดยใช้อีเมลเป็นเงื่อนไข
+	r.Db.Where("email = ?", email).First(&user)
+	// ตรวจสอบว่าพบผู้ใช้หรือไม่
+	if user.ID == 0 {
+		c.JSON(404, gin.H{"message": "User not found"})
+		return
+	}
+	// ลบผู้ใช้ออกจากฐานข้อมูล
+	r.Db.Delete(&user)
+	c.JSON(200, gin.H{"message": "User deleted successfully"})
 }
 
 // ฟังก์ชันสำหรับ Login ของ User
@@ -107,8 +122,8 @@ func (r *UserRepository) DeleteUser(c *gin.Context) {
 func (r *UserRepository) Login(c *gin.Context) {
 	var user User
 	var inputUser User
-	c.BindJSON(&inputUser)	// รับค่า JSON จากผู้ใช้งาน และแปลงเป็น struct ของ User
-	r.Db.First(&user, "email = ?", inputUser.Email)	// SELECT * FROM users WHERE email = inputUser.Email
+	c.BindJSON(&inputUser)                          // รับค่า JSON จากผู้ใช้งาน และแปลงเป็น struct ของ User
+	r.Db.First(&user, "email = ?", inputUser.Email) // SELECT * FROM users WHERE email = inputUser.Email
 	if user.ID == 0 {
 		c.JSON(401, gin.H{"message": "Invalid email or password"})
 		return
@@ -135,5 +150,5 @@ func CheckPasswordHash(password, hash string) bool {
 	if err != nil {
 		fmt.Println("Password does not match")
 	}
-	return err == nil	// ส่งค่ากลับเป็น boolean ว่ารหัสผ่านตรงกันหรือไม่ (true หรือ false) โดยใช้เงื่อนไข err == nil ในการตรวจสอบ ถ้า err เป็น nil คือรหัสผ่านตรงกัน และส่งค่ากลับเป็น true ถ้าไม่ตรงกัน ส่งค่ากลับเป็น false
+	return err == nil // ส่งค่ากลับเป็น boolean ว่ารหัสผ่านตรงกันหรือไม่ (true หรือ false) โดยใช้เงื่อนไข err == nil ในการตรวจสอบ ถ้า err เป็น nil คือรหัสผ่านตรงกัน และส่งค่ากลับเป็น true ถ้าไม่ตรงกัน ส่งค่ากลับเป็น false
 }

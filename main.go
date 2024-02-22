@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// AutoMigrate the database
-	err = database.AutoMigrate(&models.Item{}, &models.Student{}, &models.Subject{},&models.User{})
+	err = database.AutoMigrate(&models.Item{}, &models.Student{}, &models.Subject{}, &models.User{}, &models.Teacher{})
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -100,6 +100,24 @@ func main() {
 
 	// api /users/login จะเป็นการเรียกใช้งานฟังก์ชัน Login ใน UserRepository
 	r.POST("/users/login", userRepo.Login)
+
+	// Teacher routes
+	teacherRepo := models.NewTeacherRepository(database)
+
+	// Get all teachers
+	r.GET("/teachers", teacherRepo.GetTeachers)
+
+	// Create a new teacher
+	r.POST("/teachers", teacherRepo.CreateTeacher)
+
+	// Get a specific teacher by ID
+	r.GET("/teachers/:id", teacherRepo.GetTeacher)
+
+	// Update an existing teacher
+	r.PUT("/teachers/:id", teacherRepo.UpdateTeacher)
+
+	// Delete a teacher
+	r.DELETE("/teachers/:id", teacherRepo.DeleteTeacher)
 
 	// 404 route
 	r.NoRoute(func(c *gin.Context) {
